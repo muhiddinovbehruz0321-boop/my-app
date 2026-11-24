@@ -117,8 +117,8 @@
 .auth-form .primary-button { margin-top:5px; }
 .empty-state { padding:34px 20px; color:var(--muted); text-align:center; font-size:12px; }
 .toast { position:fixed; z-index:12; left:50%; bottom:27px; transform:translateX(-50%); padding:12px 17px; border:1px solid #c6f36a70; background:#1b241b; color:#e8f2dd; font-size:11px; box-shadow:0 8px 34px #0008; }
-.game-shell { position:fixed; inset:0; z-index:20; background:#101515; }
-.game-shell canvas { display:block; }
+.game-shell { position:fixed; inset:0; z-index:20; overflow:hidden; background:#101515; touch-action:none; overscroll-behavior:none; }
+.game-shell canvas { display:block; touch-action:none; }
 .game-vignette { pointer-events:none; position:absolute; inset:0; background:radial-gradient(ellipse at center,transparent 68%,#05090955 100%); }
 .game-top { position:absolute; top:21px; left:50%; transform:translateX(-50%); text-align:center; pointer-events:none; }
 .game-round { font:700 15px 'Barlow Condensed',sans-serif; letter-spacing:2px; text-shadow:0 2px 6px #000; }
@@ -152,6 +152,19 @@
 .game-message span { display:block; margin-top:6px; color:#bbc3bd; font-size:11px; }
 .game-exit { position:absolute; top:20px; left:50%; margin-left:90px; padding:8px 11px; border:1px solid #ffffff37; background:#101515bd; color:white; font:600 10px 'Barlow Condensed',sans-serif; letter-spacing:1px; cursor:pointer; }
 .game-controls { position:absolute; bottom:14px; left:50%; transform:translateX(-50%); color:#d5ddd6a8; font-size:9px; pointer-events:none; white-space:nowrap; }
+.touch-controls { position:absolute; inset:0; z-index:10; pointer-events:none; touch-action:none; user-select:none; -webkit-user-select:none; }
+.touch-look-zone { position:absolute; z-index:1; top:16%; right:0; bottom:22%; width:58%; pointer-events:auto; touch-action:none; }
+.touch-joystick { position:absolute; z-index:2; left:clamp(18px,5vw,72px); bottom:calc(118px + env(safe-area-inset-bottom)); width:136px; height:136px; display:grid; place-items:center; border:1px solid #dfe8df55; border-radius:50%; background:#11191755; box-shadow:inset 0 0 32px #0005,0 8px 26px #0004; pointer-events:auto; touch-action:none; }
+.touch-stick { width:52px; height:52px; border:1px solid #dce5d866; border-radius:50%; background:linear-gradient(145deg,#65715fdd,#202a26ee); box-shadow:0 4px 14px #0008; }
+.touch-actions { position:absolute; z-index:3; right:clamp(12px,3vw,42px); bottom:calc(116px + env(safe-area-inset-bottom)); display:grid; justify-items:end; gap:8px; pointer-events:auto; }
+.touch-weapons,.touch-combat,.touch-objectives { display:flex; align-items:center; justify-content:flex-end; gap:6px; }
+.touch-button { min-width:38px; height:38px; padding:0 8px; border:1px solid #dbe5d55e; border-radius:7px; background:#101715d9; color:#e7ede6; font:700 10px 'Barlow Condensed',sans-serif; letter-spacing:.5px; text-shadow:0 1px 3px #000; box-shadow:0 3px 12px #0005; touch-action:none; user-select:none; -webkit-user-select:none; }
+.touch-button:active { border-color:var(--accent); background:#25301fdc; color:var(--accent); }
+.touch-slot { width:34px; min-width:34px; padding:0; font-size:12px; }
+.touch-reload { width:38px; min-width:38px; color:var(--accent); }
+.touch-fire { width:76px; height:76px; margin-left:5px; border:1px solid #c6f36aa8; border-radius:50%; background:#53652dbb; color:#f3f8e9; font-size:13px; letter-spacing:1px; }
+.touch-deploy { position:absolute; z-index:11; left:50%; bottom:22%; transform:translateX(-50%); padding:14px 22px; border:1px solid var(--accent); background:#101715e8; color:var(--accent); font:700 13px 'Barlow Condensed',sans-serif; letter-spacing:1.6px; box-shadow:0 8px 30px #0009; touch-action:manipulation; }
+.touch-deploy:active { background:#28331f; }
 .game-setup { position:fixed; inset:0; z-index:19; display:grid; place-items:center; background:#090d0def; }
 .setup-card { width:min(440px,calc(100% - 32px)); padding:30px; border:1px solid var(--line); background:#151b1d; }
 .setup-card h2 { margin:8px 0 10px; font:700 34px 'Barlow Condensed',sans-serif; text-transform:uppercase; }
@@ -160,5 +173,38 @@
 .setup-option { flex:1; padding:12px 6px; border:1px solid var(--line); background:#101516; color:#aeb8b1; font:600 10px 'Barlow Condensed',sans-serif; letter-spacing:.7px; cursor:pointer; }
 .setup-option.active { border-color:var(--accent); color:var(--accent); }
 .setup-actions { display:flex; justify-content:flex-end; gap:9px; }
+@media(pointer:coarse) {
+  .game-controls { display:none; }
+  .game-bottom { left:8px; right:8px; bottom:calc(8px + env(safe-area-inset-bottom)); }
+  .health-block,.ammo-block { min-width:110px; padding:6px 8px; }
+  .health-value { font-size:23px; }
+  .health-bar { width:88px; }
+  .ammo-value { font-size:27px; }
+  .weapon-tag { font-size:8px; letter-spacing:1px; }
+  .game-prompt { bottom:calc(208px + env(safe-area-inset-bottom)); max-width:76vw; white-space:normal; text-align:center; }
+}
+@media(pointer:coarse) and (orientation:portrait) {
+  .game-objective { top:calc(10px + env(safe-area-inset-top)); left:10px; max-width:138px; padding:8px; }
+  .game-objective small { font-size:8px; }
+  .mini-map { top:calc(10px + env(safe-area-inset-top)); right:10px; width:82px; height:82px; }
+  .game-top { top:calc(104px + env(safe-area-inset-top)); }
+  .game-exit { top:calc(105px + env(safe-area-inset-top)); right:10px; left:auto; margin:0; }
+  .touch-joystick { left:14px; bottom:calc(138px + env(safe-area-inset-bottom)); width:116px; height:116px; }
+  .touch-stick { width:46px; height:46px; }
+  .touch-actions { right:10px; bottom:calc(136px + env(safe-area-inset-bottom)); gap:6px; }
+  .touch-weapons,.touch-combat,.touch-objectives { gap:4px; }
+  .touch-button { min-width:34px; height:34px; padding-inline:6px; font-size:9px; }
+  .touch-slot { width:30px; min-width:30px; }
+  .touch-reload { width:34px; min-width:34px; }
+  .touch-fire { width:62px; height:62px; font-size:11px; }
+  .game-bottom { bottom:calc(6px + env(safe-area-inset-bottom)); }
+  .health-block,.ammo-block { min-width:92px; padding:5px 6px; }
+  .health-label,.ammo-label { font-size:8px; letter-spacing:1px; }
+  .health-value { font-size:20px; }
+  .health-bar { width:72px; }
+  .ammo-value { font-size:23px; }
+  .weapon-tag { font-size:7px; }
+  .touch-deploy { bottom:27%; }
+}
 @media(max-width:850px) { .topbar { gap:22px; padding-inline:20px; }.brand { min-width:auto; }.brand-sub,.server-state,.profile-copy { display:none; }.nav-tabs { gap:18px; }.mode-grid { grid-template-columns:repeat(2,1fr); }.hero { min-height:310px; }.hero-visual { width:54%; opacity:.75; }.lower-grid { grid-template-columns:1fr; } }
 @media(max-width:560px) { .topbar { height:64px; gap:13px; }.brand-name { font-size:17px; letter-spacing:1.5px; }.brand-mark { width:29px; height:29px; }.nav-tabs { gap:12px; }.nav-tab { font-size:9px; letter-spacing:.7px; }.nav-tab:nth-child(n+3) { display:none; }.top-actions { margin-left:auto; }.page { padding:25px 16px 40px; }.hero { min-height:320px; padding:28px 20px; }.hero-visual { width:75%; opacity:.38; }.hero-coordinate { display:none; }.hero-intel { right:14px; bottom:14px; }.hero-copy { max-width:100%; }.hero h2 { font-size:54px; }.hero-actions { gap:12px; }.primary-button,.secondary-button { padding-inline:13px; }.heading-note { display:none; }.mode-grid { gap:8px; }.mode-card { min-height:105px; padding:13px; }.map-card { grid-template-columns:1fr; }.map-art { min-height:110px; }.profile-stats { grid-template-columns:1fr 1fr; }.settings-grid { grid-template-columns:1fr; }.mini-map { width:85px;height:85px;right:12px;top:12px; transform:scale(.88); transform-origin:top right; }.game-objective { top:13px;left:12px;max-width:145px; }.game-bottom { left:8px;right:8px;bottom:40px; }.health-block,.ammo-block { min-width:120px;padding:8px; }.game-controls { bottom:14px; }.game-exit { left:auto;right:110px;margin:0; }.game-clock { font-size:14px; }.game-top { top:15px; } }

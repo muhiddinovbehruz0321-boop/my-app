@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Breachline</string>
+    <string name="title_activity_main">Breachline</string>
+    <string name="package_name">com.breachline.tactical</string>
+    <string name="custom_url_scheme">com.breachline.tactical</string>
+</resources>

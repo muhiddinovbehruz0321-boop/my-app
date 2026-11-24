@@ -5,7 +5,8 @@ Breachline is an original tactical-FPS prototype. Its visual identity, Ardent Di
 ## What is implemented
 
 - React + TypeScript + Vite command interface with Operations, Armory, Operator Profile, After Action, and Settings screens.
-- A playable first-person 3D blockout in Three.js / React Three Fiber / Drei: mouse look with pointer lock, WASD, sprint, crouch, jump, boundary/cover collision, cover-occluded hitscan, four original bots with line-of-sight attacks and movement, four distinct weapons with independent magazines and reloads, recoil, muzzle flashes, health/ammo HUD, a round clock, and plant/defuse objectives.
+- A playable first-person 3D blockout in Three.js / React Three Fiber / Drei: mouse look with pointer lock on desktop, touch joystick/look/fire/action controls on phones, WASD, sprint, crouch, jump, boundary/cover collision, cover-occluded hitscan, four original bots, four distinct weapons, recoil, muzzle flashes, HUD, and plant/defuse objectives.
+- A Capacitor Android project with original launcher branding. The same responsive web build serves desktop browsers and the Android WebView.
 - Local preferences and a cosmetic finish selection persisted in browser storage.
 - Express + TypeScript API foundation with Zod input checks, bcrypt password hashing, rate-limited registration/login, short-lived JWT bearer sessions, profile and explicitly **unverified local** match-record endpoints, and Prisma/PostgreSQL models.
 - Authenticated Socket.IO lobby creation/joining and server-stepped movement snapshots with bounded inputs and alternating teams.
@@ -28,19 +29,20 @@ docker-compose.yml          Local PostgreSQL
 
 1. **Foundation — done:** TypeScript/Vite, React, R3F/Drei, Express, Socket.IO, Zod, Prisma, PostgreSQL Compose, and environment configuration.
 2. **Menu and account UI — partial:** responsive navigation, settings, armory preview, profile/auth forms, and history page; account/history require a configured database.
-3. **FPS controls — prototype done:** pointer lock, camera, movement, jumping, crouch/sprint, map bounds, and cover collision.
+3. **FPS controls — prototype done:** desktop pointer lock and keyboard controls, mobile virtual movement/look/actions, camera, jumping, crouch/sprint, map bounds, and cover collision.
 4. **First map — blockout done:** original Ardent District with two marked sites, street surfaces, procedural sky, facade details, and route cover; still not production-quality 3D art.
 5. **Combat — partial:** four selectable original weapons (carbine, sidearm, SMG, shotgun), separate magazines/reserves, reloads, spread, recoil, hitscan, muzzle flash, cover-aware hits, and HUD; no armor or game-audio pipeline.
 6. **Bots — prototype partial:** four bots with line-of-sight checks, cover-aware movement, strafing, attacks, and firing effects; no navmesh, squad tactics, difficulty selection, or bomb behavior.
 7. **Backend accounts/stats — implemented, unverified against a live DB:** registration, login, profile and local match history endpoints with Prisma/PostgreSQL. Client-reported practice results are never counted as trusted wins or rating.
 8. **Multiplayer — foundation only:** authenticated lobby events and server-clamped movement snapshots; no client lobby UI, live player rendering, authoritative combat/rounds, matchmaking, reconnect flow, or anti-cheat system.
 9. **Inventory/audio — partial:** local original finish selection and volume preference; persistent database inventory and game audio are not implemented.
-10. **Verification — frontend/backend builds and static checks:** run the commands below. A live PostgreSQL migration, browser-level gameplay test, and multi-client network test still need to be run in the target environment.
+10. **Verification — web build and Android asset sync pass:** a native Gradle build, device playtest, live PostgreSQL migration, and multi-client network test still need to be run in their target environments.
 
 ## Requirements
 
-- Node.js 20.19+ (Node 24 recommended) and npm
+- Node.js 20.19+ for the web build (Node 22 recommended); Capacitor Android commands require Node 22+
 - Docker Desktop with Compose, or a separately running PostgreSQL 16 instance
+- Android Studio and its Android SDK are only needed for native Android builds
 
 ## Local setup (PowerShell)
 
@@ -92,9 +94,22 @@ Never commit `.env`. `.env.example` contains development-only database credentia
 - **W / A / S / D:** move; **mouse:** aim; **left click:** fire
 - **Shift:** sprint; **C** or **Ctrl:** crouch; **Space:** jump
 - **R:** reload; **1–4:** equip carbine/sidearm/SMG/shotgun; **E:** plant at a nearby site; **F:** hold to defuse at the planted site
+- **Phone:** left virtual joystick to move, drag the right side to aim, and use the on-screen action buttons
 - Click **Leave Match** or press **Escape** to release pointer lock.
 
 Training disables bot damage and the objective. Practice is a local round against four bots.
+
+## Android build (pre-release)
+
+The Android wrapper uses the provisional application ID `com.breachline.tactical`. Confirm the final ID before publishing because Play Store application IDs cannot be changed after release.
+
+```powershell
+npm install
+npm run android:sync
+npm run android:open
+```
+
+In Android Studio, install the Android SDK required by the generated Gradle project, then build and test on a real phone. This environment has no Java/Android SDK, so a native APK/AAB build has not been verified here. A Play Store release also needs a developer account, a securely managed upload key, store listing assets, a privacy/data-safety declaration, and a production API if account features are to be enabled. Do not commit signing keys or send them in chat.
 
 ## Build and verification
 
@@ -111,6 +126,7 @@ npx prisma validate
 ## Known gaps
 
 - Competitive, casual and deathmatch matchmaking are intentionally unavailable in this slice.
+- Android touch input and Capacitor asset sync are implemented, but device testing, signed AAB generation, and Play Console submission are still outstanding.
 - No complete round/team system, player armor, additional maps, game sound assets, player inventory persistence, Redis, or production anti-cheat.
 - The Socket.IO lobby does not yet feed the rendered game; movement snapshots are not equivalent to a complete authoritative FPS simulation.
 - PostgreSQL connection, Prisma migration, registration/login persistence, and multi-client synchronization require running their respective local services and have not been claimed as tested here. Local match reports are explicitly unverified and do not update trusted profile stats.

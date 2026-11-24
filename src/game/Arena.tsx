@@ -21,6 +21,31 @@ type HudState = {
   notice: string
 }
 
+type TouchInput = {
+  moveX: number
+  moveY: number
+  lookX: number
+  lookY: number
+  fire: boolean
+  sprint: boolean
+  crouch: boolean
+  jump: boolean
+  reload: boolean
+  plant: boolean
+  defuse: boolean
+  weapon: WeaponName | null
+}
+
+type TouchHoldControl = 'fire' | 'sprint' | 'crouch' | 'jump' | 'plant' | 'defuse'
+
+function createTouchInput(): TouchInput {
+  return {
+    moveX: 0, moveY: 0, lookX: 0, lookY: 0,
+    fire: false, sprint: false, crouch: false, jump: false,
+    reload: false, plant: false, defuse: false, weapon: null,
+  }
+}
+
 const initialHud: HudState = {
   health: 100, ammo: WEAPONS['VXR-9 CARBINE'].magazine, reserve: WEAPONS['VXR-9 CARBINE'].reserve, weapon: 'VXR-9 CARBINE',
   time: 180, kills: 0, enemies: 4, bombPlanted: false, result: '', notice: '',
@@ -648,13 +673,15 @@ function PlayerWeapon({ weaponName, skin, recoil, muzzleFlash }: {
   )
 }
 
-function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
+function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin, touchInput, activeRef }: {
   hudRef: React.MutableRefObject<HudState>
   setHud: (value: HudState) => void
   mode: GameMode
   restartId: number
   sensitivity: number
   weaponSkin: string
+  touchInput: React.MutableRefObject<TouchInput>
+  activeRef: React.MutableRefObject<boolean>
 }) {
   const { camera, gl, scene } = useThree()
   const skyTexture = useMemo(() => makeSkyTexture(), [])
@@ -690,6 +717,24 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
     hudRefLive.current.current = updated
     setHudLive.current(updated)
   }, [])
+
+  const equipWeapon = useCallback((name: WeaponName) => {
+    activeWeapon.current = name
+    reloadUntil.current = 0
+    const magazine = magazines.current[name]
+    publishHud({ weapon: name, ammo: magazine.ammo, reserve: magazine.reserve, notice: '' })
+  }, [publishHud])
+
+  const reload = useCallback(() => {
+    const name = activeWeapon.current
+    const weapon = WEAPONS[name]
+    const magazine = magazines.current[name]
+    if (!reloadUntil.current && magazine.ammo < weapon.magazine && magazine.reserve > 0) {
+      reloadWeapon.current = name
+      reloadUntil.current = performance.now() + weapon.reload
+      publishHud({ notice: 'RELOADING' })
+    }
+  }, [publishHud])
 
   useEffect(() => {
     scene.background = skyTexture
@@ -735,6 +780,7 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
       pitch.current = MathUtils.clamp(pitch.current - event.movementY * mouseScale, -1.32, 1.32)
     }
     const onMouseDown = (event: MouseEvent) => {
+      if (window.matchMedia('(pointer: coarse)').matches) return
       if (event.button !== 0 || event.target !== gl.domElement) return
       if (document.pointerLockElement !== gl.domElement) {
         void gl.domElement.requestPointerLock()
@@ -746,27 +792,13 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
     const onKeyDown = (event: KeyboardEvent) => {
       keys.current.add(event.code)
       if (event.code === 'Space') event.preventDefault()
-      const weaponName = event.code === 'Digit1' ? 'VXR-9 CARBINE'
+      const weaponName: WeaponName | undefined = event.code === 'Digit1' ? 'VXR-9 CARBINE'
         : event.code === 'Digit2' ? 'KITE-12 SIDEARM'
           : event.code === 'Digit3' ? 'MTR-5 COMPACT'
             : event.code === 'Digit4' ? 'QUARRY-8 BREACHER'
               : undefined
-      if (weaponName) {
-        activeWeapon.current = weaponName
-        reloadUntil.current = 0
-        const magazine = magazines.current[weaponName]
-        publishHud({ weapon: weaponName, ammo: magazine.ammo, reserve: magazine.reserve, notice: '' })
-      }
-      if (event.code === 'KeyR') {
-        const name = activeWeapon.current
-        const weapon = WEAPONS[name]
-        const magazine = magazines.current[name]
-        if (!reloadUntil.current && magazine.ammo < weapon.magazine && magazine.reserve > 0) {
-          reloadWeapon.current = name
-          reloadUntil.current = performance.now() + weapon.reload
-          publishHud({ notice: 'RELOADING' })
-        }
-      }
+      if (weaponName) equipWeapon(weaponName)
+      if (event.code === 'KeyR') reload()
     }
     const onKeyUp = (event: KeyboardEvent) => keys.current.delete(event.code)
     document.addEventListener('pointerlockchange', onLockChange)
@@ -784,7 +816,7 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
       document.removeEventListener('keyup', onKeyUp)
       if (document.pointerLockElement === gl.domElement) document.exitPointerLock()
     }
-  }, [camera, gl, publishHud, sensitivity])
+  }, [camera, equipWeapon, gl, reload, sensitivity])
 
   fireRef.current = () => {
     const current = hudRefLive.current.current
@@ -831,9 +863,23 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05)
+    const touch = touchInput.current
+    if (touch.weapon) {
+      equipWeapon(touch.weapon)
+      touch.weapon = null
+    }
+    if (touch.reload) {
+      reload()
+      touch.reload = false
+    }
     const current = hudRefLive.current.current
-    if (current.result || document.pointerLockElement !== gl.domElement) return
+    if (current.result || (!activeRef.current && document.pointerLockElement !== gl.domElement)) return
     elapsed.current += dt
+    const touchScale = (sensitivity / 45) * 0.0028
+    yaw.current -= touch.lookX * touchScale
+    pitch.current = MathUtils.clamp(pitch.current - touch.lookY * touchScale, -1.32, 1.32)
+    touch.lookX = 0
+    touch.lookY = 0
     camera.rotation.order = 'YXZ'
     camera.rotation.set(pitch.current - recoil.current, yaw.current, 0, 'YXZ')
     recoil.current = Math.max(0, recoil.current - dt * 0.03)
@@ -845,15 +891,20 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
     if (keys.current.has('KeyS')) move.sub(forward)
     if (keys.current.has('KeyD')) move.add(right)
     if (keys.current.has('KeyA')) move.sub(right)
-    const crouching = keys.current.has('KeyC') || keys.current.has('ControlLeft')
-    const speed = crouching ? 2.3 : keys.current.has('ShiftLeft') ? 7.3 : 4.8
+    move.addScaledVector(right, touch.moveX)
+    move.addScaledVector(forward, -touch.moveY)
+    const crouching = keys.current.has('KeyC') || keys.current.has('ControlLeft') || touch.crouch
+    const speed = crouching ? 2.3 : keys.current.has('ShiftLeft') || touch.sprint ? 7.3 : 4.8
     if (move.lengthSq()) {
       move.normalize().multiplyScalar(speed * dt)
       const position = movePlayer(camera.position.x, camera.position.z, move.x, move.z)
       camera.position.x = position.x
       camera.position.z = position.z
     }
-    if (keys.current.has('Space') && camera.position.y <= (crouching ? 1.16 : 1.68) + 0.04) verticalSpeed.current = 5.1
+    if ((keys.current.has('Space') || touch.jump) && camera.position.y <= (crouching ? 1.16 : 1.68) + 0.04) {
+      verticalSpeed.current = 5.1
+      touch.jump = false
+    }
     verticalSpeed.current -= 13.5 * dt
     camera.position.y += verticalSpeed.current * dt
     const baseHeight = crouching ? 1.18 : 1.65
@@ -870,12 +921,12 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
       reloadUntil.current = 0
       if (name === activeWeapon.current) publishHud({ ammo: magazine.ammo, reserve: magazine.reserve, notice: 'MAGAZINE READY' })
     }
-    if (mouseDown.current) fireRef.current()
+    if (mouseDown.current || touch.fire) fireRef.current()
 
     const distanceToSiteA = camera.position.distanceTo(SITE_A)
     const distanceToSiteB = camera.position.distanceTo(SITE_B)
     const atSite = distanceToSiteA < 3.6 || distanceToSiteB < 3.6
-    const pressingPlant = keys.current.has('KeyE')
+    const pressingPlant = keys.current.has('KeyE') || touch.plant
     if (pressingPlant && !lastPlantKey.current && atSite && !current.bombPlanted && mode !== 'TRAINING') {
       bombSeconds.current = 35
       plantedSite.current.copy(distanceToSiteA < distanceToSiteB ? SITE_A : SITE_B)
@@ -886,7 +937,7 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
       bombSeconds.current -= dt
       if (bombSeconds.current <= 0) publishHud({ result: 'SITE DESTROYED', notice: 'OBJECTIVE COMPLETE' })
       const atDefuseSite = camera.position.distanceTo(plantedSite.current) < 3.6
-      if (atDefuseSite && keys.current.has('KeyF')) {
+      if (atDefuseSite && (keys.current.has('KeyF') || touch.defuse)) {
         if (defuseStartedAt.current === null) {
           defuseStartedAt.current = elapsed.current
           publishHud({ notice: 'DEFUSING — HOLD F' })
@@ -962,6 +1013,146 @@ function World({ hudRef, setHud, mode, restartId, sensitivity, weaponSkin }: {
   )
 }
 
+function MobileControls({ input, active, mode, onDeploy }: {
+  input: React.MutableRefObject<TouchInput>
+  active: boolean
+  mode: GameMode
+  onDeploy: () => void
+}) {
+  const joystick = useRef<HTMLDivElement>(null)
+  const joystickPointer = useRef<number | null>(null)
+  const lookPointer = useRef<{ id: number; x: number; y: number } | null>(null)
+  const [stickOffset, setStickOffset] = useState({ x: 0, y: 0 })
+
+  const moveStick = (event: React.PointerEvent<HTMLDivElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const radius = bounds.width * 0.34
+    const dx = event.clientX - (bounds.left + bounds.width / 2)
+    const dy = event.clientY - (bounds.top + bounds.height / 2)
+    const distance = Math.hypot(dx, dy)
+    const scale = distance > radius ? radius / distance : 1
+    const x = dx * scale
+    const y = dy * scale
+    input.current.moveX = x / radius
+    input.current.moveY = y / radius
+    setStickOffset({ x, y })
+  }
+  const stopStick = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (joystickPointer.current !== event.pointerId) return
+    joystickPointer.current = null
+    input.current.moveX = 0
+    input.current.moveY = 0
+    setStickOffset({ x: 0, y: 0 })
+  }
+  const startLook = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    lookPointer.current = { id: event.pointerId, x: event.clientX, y: event.clientY }
+  }
+  const moveLook = (event: React.PointerEvent<HTMLDivElement>) => {
+    const previous = lookPointer.current
+    if (!previous || previous.id !== event.pointerId) return
+    input.current.lookX += event.clientX - previous.x
+    input.current.lookY += event.clientY - previous.y
+    lookPointer.current = { ...previous, x: event.clientX, y: event.clientY }
+  }
+  const stopLook = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (lookPointer.current?.id === event.pointerId) lookPointer.current = null
+  }
+  const holdButton = (label: string, control: TouchHoldControl, className = '') => (
+    <button
+      type="button"
+      className={`touch-button ${className}`}
+      onPointerDown={(event) => {
+        event.preventDefault()
+        event.currentTarget.setPointerCapture(event.pointerId)
+        input.current[control] = true
+      }}
+      onPointerUp={() => { input.current[control] = false }}
+      onPointerCancel={() => { input.current[control] = false }}
+      onLostPointerCapture={() => { input.current[control] = false }}
+    >
+      {label}
+    </button>
+  )
+
+  if (!active) {
+    return <button type="button" className="touch-deploy" onClick={onDeploy}>TAP TO DEPLOY</button>
+  }
+
+  return (
+    <div className="touch-controls">
+      <div
+        className="touch-look-zone"
+        aria-hidden="true"
+        onPointerDown={startLook}
+        onPointerMove={moveLook}
+        onPointerUp={stopLook}
+        onPointerCancel={stopLook}
+        onContextMenu={(event) => event.preventDefault()}
+      />
+      <div
+        ref={joystick}
+        className="touch-joystick"
+        aria-label="Movement joystick"
+        onPointerDown={(event) => {
+          event.preventDefault()
+          event.currentTarget.setPointerCapture(event.pointerId)
+          joystickPointer.current = event.pointerId
+          moveStick(event)
+        }}
+        onPointerMove={(event) => {
+          if (joystickPointer.current === event.pointerId) moveStick(event)
+        }}
+        onPointerUp={stopStick}
+        onPointerCancel={stopStick}
+        onLostPointerCapture={stopStick}
+      >
+        <span className="touch-stick" style={{ transform: `translate(${stickOffset.x}px, ${stickOffset.y}px)` }} />
+      </div>
+      <div className="touch-actions">
+        <div className="touch-weapons">
+          {([
+            ['1', 'VXR-9 CARBINE'],
+            ['2', 'KITE-12 SIDEARM'],
+            ['3', 'MTR-5 COMPACT'],
+            ['4', 'QUARRY-8 BREACHER'],
+          ] as const).map(([slot, weapon]) => (
+            <button
+              type="button"
+              key={slot}
+              className="touch-button touch-slot"
+              aria-label={`Equip ${weapon}`}
+              onPointerDown={(event) => {
+                event.preventDefault()
+                input.current.weapon = weapon
+              }}
+            >
+              {slot}
+            </button>
+          ))}
+          <button type="button" className="touch-button touch-reload" aria-label="Reload" onPointerDown={(event) => {
+            event.preventDefault()
+            input.current.reload = true
+          }}>R</button>
+        </div>
+        <div className="touch-combat">
+          {holdButton('CROUCH', 'crouch')}
+          {holdButton('JUMP', 'jump')}
+          {holdButton('SPRINT', 'sprint')}
+          {holdButton('FIRE', 'fire', 'touch-fire')}
+        </div>
+        {mode !== 'TRAINING' && (
+          <div className="touch-objectives">
+            {holdButton('PLANT · E', 'plant')}
+            {holdButton('DEFUSE · F', 'defuse')}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function Arena({ mode, onExit, onComplete, sensitivity, quality, weaponSkin }: {
   mode: GameMode
   onExit: () => void
@@ -974,17 +1165,34 @@ export function Arena({ mode, onExit, onComplete, sensitivity, quality, weaponSk
   const [restartId, setRestartId] = useState(0)
   const hudRef = useRef(hud)
   hudRef.current = hud
+  const activeRef = useRef(false)
+  const touchInput = useRef(createTouchInput())
   const [started, setStarted] = useState(false)
+  const [touchMode, setTouchMode] = useState(false)
   const completedResult = useRef('')
 
   useEffect(() => {
-    const handlePointerLock = () => setStarted(document.pointerLockElement !== null)
+    const query = window.matchMedia('(pointer: coarse)')
+    const updateTouchMode = () => setTouchMode(query.matches || navigator.maxTouchPoints > 0)
+    updateTouchMode()
+    query.addEventListener('change', updateTouchMode)
+    return () => query.removeEventListener('change', updateTouchMode)
+  }, [])
+
+  useEffect(() => {
+    const handlePointerLock = () => {
+      activeRef.current = document.pointerLockElement !== null
+      setStarted(activeRef.current)
+    }
     document.addEventListener('pointerlockchange', handlePointerLock)
     return () => document.removeEventListener('pointerlockchange', handlePointerLock)
   }, [])
 
   const start = () => {
     completedResult.current = ''
+    touchInput.current = createTouchInput()
+    activeRef.current = touchMode || document.pointerLockElement !== null
+    setStarted(activeRef.current)
     setHud({ ...initialHud, time: mode === 'TRAINING' ? 0 : 180 })
     hudRef.current = { ...initialHud, time: mode === 'TRAINING' ? 0 : 180 }
     setRestartId((id) => id + 1)
@@ -1000,6 +1208,8 @@ export function Arena({ mode, onExit, onComplete, sensitivity, quality, weaponSk
     })
   }, [hud, mode, onComplete])
   const goBack = () => {
+    activeRef.current = false
+    touchInput.current = createTouchInput()
     if (document.pointerLockElement) document.exitPointerLock()
     onExit()
   }
@@ -1007,9 +1217,9 @@ export function Arena({ mode, onExit, onComplete, sensitivity, quality, weaponSk
   const second = mode === 'TRAINING' ? 'RANGE' : String(hud.time % 60).padStart(2, '0')
   return (
     <main className="game-shell">
-      <Canvas shadows={{ type: PCFShadowMap }} camera={{ position: [0, 1.65, 14], fov: 76 }} dpr={quality === 'LOW' ? 0.8 : quality === 'MEDIUM' ? 1 : [1, 1.5]} gl={{ antialias: quality !== 'LOW', powerPreference: 'high-performance' }}>
+      <Canvas shadows={quality === 'LOW' ? false : { type: PCFShadowMap }} camera={{ position: [0, 1.65, 14], fov: 76 }} dpr={quality === 'LOW' ? 0.8 : quality === 'MEDIUM' || touchMode ? 1 : [1, 1.5]} gl={{ antialias: quality !== 'LOW' && !touchMode, powerPreference: 'high-performance' }}>
         <AdaptiveDpr />
-        <World hudRef={hudRef} setHud={setHud} mode={mode} restartId={restartId} sensitivity={sensitivity} weaponSkin={weaponSkin} />
+        <World hudRef={hudRef} setHud={setHud} mode={mode} restartId={restartId} sensitivity={sensitivity} weaponSkin={weaponSkin} touchInput={touchInput} activeRef={activeRef} />
       </Canvas>
       <div className="game-vignette" />
       <div className="game-objective">ARDENT DISTRICT · FIELD 07<small>{hud.bombPlanted ? 'CHARGE ACTIVE — DEFEND THE SITE' : mode === 'TRAINING' ? 'LIVE FIRE RANGE — NO DAMAGE' : 'ARM A SITE OR ELIMINATE HOSTILES'}</small></div>
@@ -1025,9 +1235,10 @@ export function Arena({ mode, onExit, onComplete, sensitivity, quality, weaponSk
         <div className="health-block"><div className="health-label">OPERATOR STATUS</div><div className={`health-value ${hud.health < 30 ? 'low' : ''}`}>{hud.health}<span style={{ fontSize: 13, color: '#8b9691' }}> HP</span></div><div className="health-bar"><span style={{ width: `${hud.health}%` }} /></div></div>
         <div className="ammo-block"><div className="ammo-label">ACTIVE WEAPON</div><div className="ammo-value">{hud.ammo}<span> / {hud.reserve}</span></div><div className="weapon-tag">{hud.weapon}</div></div>
       </div>
-      {!started && !hud.result && <div className="game-prompt">CLICK THE ARENA TO DEPLOY · WASD MOVE · MOUSE AIM · LEFT CLICK FIRE</div>}
+      {!started && !hud.result && !touchMode && <div className="game-prompt">CLICK THE ARENA TO DEPLOY · WASD MOVE · MOUSE AIM · LEFT CLICK FIRE</div>}
       {started && hud.notice && <div className="game-prompt">{hud.notice}{hud.enemies > 0 && mode !== 'TRAINING' ? ` · HOSTILES ${hud.enemies}` : ''}</div>}
       <div className="game-controls">WASD MOVE · SHIFT SPRINT · C CROUCH · SPACE JUMP · R RELOAD · 1–4 LOADOUT · E PLANT · F DEFUSE</div>
+      {touchMode && <MobileControls input={touchInput} active={started} mode={mode} onDeploy={start} />}
       {hud.result && <div className="game-message"><strong>{hud.result}</strong><span>ELIMINATIONS {hud.kills} · {hud.notice}</span><div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginTop: 16, pointerEvents: 'auto' }}><button className="primary-button" onClick={start}>DEPLOY AGAIN</button><button className="secondary-button" onClick={goBack}>RETURN TO BASE</button></div></div>}
     </main>
   )
