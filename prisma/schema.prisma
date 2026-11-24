@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique @db.VarChar(24)
+  email        String   @unique @db.VarChar(254)
+  passwordHash String   @map("password_hash")
+  rating       Int      @default(1000)
+  wins         Int      @default(0)
+  losses       Int      @default(0)
+  kills        Int      @default(0)
+  deaths       Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  matches      Match[]
+
+  @@map("users")
+}
+
+model Match {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid @map("user_id")
+  mode            String   @db.VarChar(24)
+  result          String   @db.VarChar(8)
+  kills           Int      @default(0)
+  durationSeconds Int      @map("duration_seconds")
+  verified        Boolean  @default(false)
+  createdAt       DateTime @default(now()) @map("created_at")
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("matches")
+}
